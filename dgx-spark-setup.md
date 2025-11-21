@@ -278,6 +278,12 @@ export CUDAARCHS="12.1"
 
 export PYTORCH_BUILD_VERSION="2.9.1"
 export PYTORCH_BUILD_NUMBER="1"
+
+export CPATH=$CUDA_HOME/include:$CPATH
+export CUDA_HOME=/usr/local/cuda-13.0;
+export CUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda-13;
+export CMAKE_INCLUDE_PATH=/usr/local/cuda-13/include;
+export CMAKE_LIBRARY_PATH=/home/${user}/jupyterlab/.venv/lib/python3.12/site-packages/nvidia/cu13/include
 ```
 
 Load it:
