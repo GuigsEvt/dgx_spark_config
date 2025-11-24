@@ -397,3 +397,114 @@ This optimized environment includes:
 - Support for FP4/FP8 Tensor Cores  
 - Support for GPUDirect Storage  
 - Support for 2:4 sparsity acceleration  
+
+---
+
+# Benchmarking (FP16 GEMM Burn-In)
+
+The FP16 GEMM burn‑in script `bench_gemm.py` lets you:
+- Confirm the Blackwell GPU + SM 12.x path is active
+- Load Tensor Cores with sustained FP16 GEMMs for ~60s
+- Compare effective TFLOPs between baseline and optimized stacks
+
+## Install PyTorch
+
+Option A — Basic wheel via `bench/requirements.txt` (recommended for a quick baseline):
+
+```bash
+python3 -m venv .venv --prompt bench
+source .venv/bin/activate
+pip install -r bench/requirements.txt
+```
+
+Note: `bench/requirements.txt` pins `torch==2.9.0+cu130` and uses `--extra-index-url https://download.pytorch.org/whl/cu130` to ensure the GPU wheel is installed (CPU-only wheels are the default otherwise).
+
+Option B — Source your previously built optimized environment (the one used to build the custom PyTorch wheel):
+
+```bash
+source ~/mllib/.venv/bin/activate
+```
+
+If you have not built it yet, follow the build steps above first.
+
+Verify GPU build:
+```python
+import torch; print(torch.__version__, torch.version.cuda)
+```
+
+## Run the Benchmark (Both Environments)
+
+Baseline (Option A environment):
+```bash
+python bench_gemm.py
+```
+
+Optimized (Option B environment):
+```bash
+python bench_gemm.py
+```
+
+The script will:
+1. Print PyTorch / CUDA / cuDNN versions
+2. Report GPU name, SM count, memory, compute capability
+3. Warm up 20 FP16 GEMMs
+4. Run FP16 GEMMs (4096×4096) ~60s with rolling TFLOPs
+5. Emit summary (avg ms/iter + effective TFLOPs)
+
+### Sample Output (Excerpt)
+```
+=== DGX Spark FP16 GEMM Burn-in ===
+[PyTorch info]
+  torch.version        : 2.9.0+cu130
+  torch.cuda.version   : 13.0
+  cudnn.version        : 9xx
+[CUDA device]
+  Name        : NVIDIA Blackwell ...
+  SM count    : 128
+  Compute cap : 12.1
+[Burn-in]
+  t=  1.0s | iters=   32 | avg= 31.25 ms | ~ 45.10 TFLOPs
+  t=  2.0s | iters=   64 | avg= 31.30 ms | ~ 45.05 TFLOPs
+  ...
+[Summary]
+  Effective    : 45.02 TFLOPs (FP16)
+```
+
+### Tuning
+- Matrix size: change `M = N = K = 4096` in `bench_gemm.py` for lighter/heavier load (function defaults are larger; `main` overrides them).
+- Duration: modify `target_seconds` (default 60).
+- Data type: experiment with `torch.bfloat16` or FP8 types if kernels exist.
+
+### Capturing System Metrics Concurrently
+While the script runs you can capture utilization / power / clocks:
+
+```bash
+nvidia-smi dmon -s pucmt -d 1
+```
+
+Or, if DCGM is set up:
+```bash
+dcgmi stats -e 100 -d 1
+```
+
+### Interpreting Results
+- Baseline vs optimized: expect up to ~50% uplift with rebuilt stack (cuBLAS + cuSPARSELt + Triton + PyTorch SM 12.x flags).
+- Large variance (>5%) between seconds may indicate clock throttling or background load.
+- Low TFLOPs (< expected) → confirm GPU wheel or custom build; check `TORCH_CUDA_ARCH_LIST` includes `12.0;12.1`.
+
+### Benchmark Result Images
+
+Baseline environment with matrix size of 8192 (public wheel):
+
+![Baseline FP16 GEMM 8192](images/benchmark_basic_setup_dgx_gemm_8192.png)
+
+Optimized environment with matrix size of 8192 (custom-built stack):
+
+![Optimized FP16 GEMM 8192](images/benchmark_upgraded_setup_dgx_gemm_8192.png)
+
+Observed improvement: ~50% higher sustained FP16 TFLOPs after rebuilding with Blackwell‑specific optimizations (better kernel selection, architecture flags, and sparse/flash attention paths). Exact uplift varies with thermal conditions and active system load.
+
+### Summary of Uplift
+- Public GPU wheel: baseline GEMM throughput (legacy kernels for SM 12.x)
+- Custom build: enables tuned cuBLAS kernels + Triton JIT paths for SM 12.x
+- Net effect: ~1.50× effective FP16 GEMM TFLOPs on this workload size.
