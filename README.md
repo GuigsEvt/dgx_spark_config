@@ -92,11 +92,11 @@ python3 -m venv .venv --prompt mllib
 source .venv/bin/activate
 ```
 
-Optional essential tools:
+Essential tools:
 
 ```bash
 sudo apt update
-sudo apt install -y build-essential git cmake ninja-build python3-dev python3-pip clang libomp-dev
+sudo apt install -y build-essential git cmake ninja-build python3-dev python3-pip clang libomp-dev libopenmpi-dev openmpi-bin openmpi-common gfortran
 ```
 
 ---
@@ -274,16 +274,24 @@ export USE_FLASH_ATTENTION=1
 export USE_MEM_EFF_ATTENTION=1
 
 export TORCH_CUDA_ARCH_LIST="12.0;12.1"
-export CUDAARCHS="12.1"
+export CUDAARCHS="121"
+
+export TORCH_NVCC_FLAGS="-gencode=arch=compute_121,code=sm_121 --allow-unsupported-compiler"  # Force sm_121 sans fallback
+export NVCC_APPEND_FLAGS="-D_FORCE_INLINES -allow-unsupported-compiler"  # Ignore les warnings sur arches futures
+export NVCC_FLAGS_EXTRA=-"gencode;arch=compute_121,code=sm_121"
+export CUDA_NVCC_EXECUTABLE="/usr/local/cuda/bin/nvcc"
+
+export CMAKE_CUDA_ARCHITECTURES="120;121"
 
 export PYTORCH_BUILD_VERSION="2.9.1"
 export PYTORCH_BUILD_NUMBER="1"
 
-export CPATH=$CUDA_HOME/include:$CPATH
+export PATH=/usr/local/cuda-13.0/bin:$PATH;
 export CUDA_HOME=/usr/local/cuda-13.0;
+export CPATH=$CUDA_HOME/include:$CPATH;
 export CUDA_TOOLKIT_ROOT_DIR=/usr/local/cuda-13;
 export CMAKE_INCLUDE_PATH=/usr/local/cuda-13/include;
-export CMAKE_LIBRARY_PATH=/home/${user}/jupyterlab/.venv/lib/python3.12/site-packages/nvidia/cu13/include
+export CMAKE_LIBRARY_PATH=/home/${user}/jupyterlab/.venv/lib/python3.12/site-packages/nvidia/cu13/include;
 ```
 
 Load it:
@@ -356,11 +364,17 @@ You should see:
 ## Pytorch audio
 
 ```bash
+sudo apt install ffmpeg
+
+pip install numpy
+
 git clone https://github.com/pytorch/audio.git
 git checkout v2.9.1
 
-pip install numpy 
-python -m pip install . --no-deps --no-build-isolation
+export USE_CUDA=1;
+export USE_FFMPEG=1;
+
+python setup.py bdist_wheel # Create wheel file
 ```
 
 ## Pytorch video
@@ -369,19 +383,36 @@ python -m pip install . --no-deps --no-build-isolation
 git clone https://github.com/pytorch/vision.git
 git checkout v0.9.2
 
-python -m pip install . --no-deps --no-build-isolation
+mv pyproject.toml pyproject.toml.bak # Cause weird behavior
+
+python setup.py bdist_wheel # Create wheel file
 ```
 
-## Flash attention 
+## Flash attention
 
 Flash attention is built from third party of Pytorch, we just need to build from there
 
 ```bash
 cd pytorch/third_party/flash-attention
-python setup.py install
+
+python setup.py bdist_wheel # Create wheel file
 ```
 
-Do the same for any library from third party that you would need for your project. 
+## Onnx
+
+Onnx is built from third party of Pytorch, we just need to build from there
+
+```bash
+
+cd pytorch/third_party/onnx
+
+export CMAKE_ARGS="-DONNX_USE_PROTOBUF_SHARED_LIBS=ON"
+export CMAKE_ARGS="-DONNX_USE_LITE_PROTO=ON"
+
+python setup.py bdist_wheel # Create wheel file
+```
+
+Do the same for any library from third party that you would need for your project.
 
 # Conclusion
 
