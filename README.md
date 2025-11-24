@@ -250,7 +250,7 @@ Switch back to main venv:
 ```bash
 deactivate
 source ~/mllib/.venv/bin/activate
-pip install triton/dist/*.whl
+pip install triton/dist/*.whlhi
 ```
 
 ---
@@ -413,6 +413,70 @@ python setup.py bdist_wheel # Create wheel file
 ```
 
 Do the same for any library from third party that you would need for your project.
+
+## Reusable Wheelhouse (Symlink Strategy)
+
+After building all wheels (audio, vision, torch, triton, onnx, flash-attention, etc.) you can create a central "wheelhouse" directory of symlinks. This lets you: 
+- Rapidly bootstrap new virtual environments (`pip install --no-index --find-links ...`) without rebuilding.
+- Copy the collection to another DGX Spark node for identical setup.
+
+### Create Wheelhouse
+Choose a directory (example: `~/jupyterlab/mlwheel`).
+
+```bash
+export MLWHEEL=~/jupyterlab/mlwheel
+mkdir -p "$MLWHEEL"
+
+# Assuming your build directories (adjust paths as needed)
+ln -s ~/jupyterlab/mllib/audio/dist/*.whl            "$MLWHEEL"/
+ln -s ~/jupyterlab/mllib/vision/dist/*.whl           "$MLWHEEL"/
+ln -s ~/jupyterlab/mllib/torch/dist/*.whl            "$MLWHEEL"/
+ln -s ~/jupyterlab/mllib/triton/dist/*.whl           "$MLWHEEL"/
+ln -s ~/jupyterlab/mllib/pytorch/third_party/onnx/dist/*.whl "$MLWHEEL"/
+ln -s ~/jupyterlab/mllib/pytorch/third_party/flash-attention/dist/*.whl "$MLWHEEL"/
+
+ls -1 "$MLWHEEL"  # verify links
+```
+
+If you need root-owned shared location (e.g. `/opt/mlwheel`):
+```bash
+sudo mkdir -p /opt/mlwheel
+sudo chown $USER /opt/mlwheel
+export MLWHEEL=/opt/mlwheel
+# repeat ln -s commands above targeting /opt/mlwheel
+```
+
+### Use Wheelhouse in a New Environment
+```bash
+python3 -m venv .venv --prompt reuse
+source .venv/bin/activate
+pip install --no-index --find-links "$MLWHEEL" \
+  torch torchvision torchaudio triton onnx flash-attention
+```
+
+`--no-index` ensures pip does not query PyPI; `--find-links` points pip to your local wheel set.
+
+### Updating Wheels
+When you rebuild a component (e.g. new PyTorch commit):
+```bash
+rm "$MLWHEEL"/torch-*.whl
+ln -s ~/jupyterlab/mllib/torch/dist/torch-NEWVERSION.whl "$MLWHEEL"/
+```
+You can keep multiple versions if desired—omit the `rm` and pip will select the latest matching version unless you pin explicitly.
+
+### Copying to Another DGX Spark Node
+On source node:
+```bash
+tar czf mlwheel.tgz -C "$MLWHEEL" .
+scp mlwheel.tgz other-node:/tmp/
+```
+On destination node:
+```bash
+mkdir -p ~/jupyterlab/mlwheel
+tar xzf /tmp/mlwheel.tgz -C ~/jupyterlab/mlwheel
+export MLWHEEL=~/jupyterlab/mlwheel
+```
+Now repeat the environment creation step using the extracted wheelhouse.
 
 # Conclusion
 
