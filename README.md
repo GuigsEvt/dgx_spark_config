@@ -630,3 +630,10 @@ Observed improvement: ~50% higher sustained FP16 TFLOPs after rebuilding with Bl
 - Public GPU wheel: baseline GEMM throughput (legacy kernels for SM 12.x)
 - Custom build: enables tuned cuBLAS kernels + Triton JIT paths for SM 12.x
 - Net effect: ~1.50× effective FP16 GEMM TFLOPs on this workload size.
+
+---
+
+## Co-Authors
+
+- **Luc Bocahut** - luc@xrpl-commons.org
+- **Martino Bettucci** - https://github.com/martinobettucci
