@@ -334,9 +334,7 @@ python setup.py bdist_wheel # Create wheel file
 
 ```bash
 git clone https://github.com/pytorch/vision.git
-git checkout v0.9.2
-
-mv pyproject.toml pyproject.toml.bak # Cause weird behavior
+git checkout v0.24.1
 
 python setup.py bdist_wheel # Create wheel file
 ```
